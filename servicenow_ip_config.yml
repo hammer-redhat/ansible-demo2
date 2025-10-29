@@ -1,8 +1,6 @@
 ---
 - name: ServiceNow Ticket Management and IP Configuration on RHEL 9
   hosts: all
-  become: yes  # Required for network configuration
-  
   vars:
     # Network configuration variables
     interface_name: "{{ interface_name | default('eth0') }}"
