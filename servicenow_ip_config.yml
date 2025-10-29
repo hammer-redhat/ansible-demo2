@@ -1,0 +1,147 @@
+---
+- name: ServiceNow Ticket Management and IP Configuration on RHEL 9
+  hosts: all
+  become: yes  # Required for network configuration
+  
+  vars:
+    # ServiceNow connection variables (should be passed via extra_vars or vault)
+    servicenow_instance: "{{ servicenow_instance | default('your-instance.service-now.com') }}"
+    servicenow_username: "{{ servicenow_username | default('admin') }}"
+    servicenow_password: "{{ servicenow_password }}"
+    servicenow_ticket_number: "{{ servicenow_ticket_number }}"
+    
+    # Network configuration variables
+    interface_name: "{{ interface_name | default('eth0') }}"
+    ip_address: "{{ ip_address | default('192.168.1.100/24') }}"  # CIDR notation (e.g., /24 for 255.255.255.0)
+    gateway: "{{ gateway | default('192.168.1.1') }}"
+    
+  # Note: Password should be provided via extra_vars, vault, or ansible vault
+  # Example: ansible-playbook servicenow_ip_config.yml -e "servicenow_password=yourpassword"
+  vars_prompt:
+    - name: servicenow_password
+      prompt: "Enter ServiceNow password"
+      private: yes
+  
+  tasks:
+    - name: ServiceNow ticket management and IP configuration
+      block:
+        - name: Check if ServiceNow ticket exists
+          servicenow.itsm.incident_info:
+            instance: "{{ servicenow_instance }}"
+            username: "{{ servicenow_username }}"
+            password: "{{ servicenow_password }}"
+            number: "{{ servicenow_ticket_number }}"
+          register: ticket_info
+          delegate_to: localhost
+          failed_when: ticket_info.record is not defined or ticket_info.record | length == 0
+          
+        - name: Display ticket information
+          ansible.builtin.debug:
+            msg: "Found ticket {{ servicenow_ticket_number }} - Current state: {{ ticket_info.record[0].state | default('Unknown') }}"
+          when: ticket_info.record is defined and ticket_info.record | length > 0
+        
+        - name: Set ServiceNow ticket to In Progress
+          servicenow.itsm.incident:
+            instance: "{{ servicenow_instance }}"
+            username: "{{ servicenow_username }}"
+            password: "{{ servicenow_password }}"
+            number: "{{ servicenow_ticket_number }}"
+            state: "in_progress"
+            work_notes: "Ticket set to in progress. Starting IP address configuration on {{ inventory_hostname }}"
+          delegate_to: localhost
+          register: ticket_update
+          
+        - name: Verify ticket was updated to In Progress
+          ansible.builtin.debug:
+            msg: "Ticket {{ servicenow_ticket_number }} updated to In Progress successfully"
+          when: ticket_update.record is defined
+        
+        - name: Check if NetworkManager is installed
+          ansible.builtin.command:
+            cmd: rpm -q NetworkManager
+          register: nm_check
+          changed_when: false
+          failed_when: false
+          
+        - name: Ensure NetworkManager is installed
+          ansible.builtin.dnf:
+            name: NetworkManager
+            state: present
+          when: nm_check.rc != 0
+          
+        - name: Check current network interface configuration
+          ansible.posix.nmcli:
+            connections: "{{ interface_name }}"
+          register: current_interface
+          failed_when: false
+          changed_when: false
+          
+        - name: Display current interface configuration
+          ansible.builtin.debug:
+            msg: "Current interface {{ interface_name }} configuration: {{ current_interface.connections | default('Not found') }}"
+          
+        - name: Add IP address to network interface (Static)
+          ansible.posix.nmcli:
+            conn_name: "{{ interface_name }}"
+            ifname: "{{ interface_name }}"
+            type: ethernet
+            ip4: "{{ ip_address }}"
+            gw4: "{{ gateway }}"
+            state: present
+            method4: manual
+          register: ip_config_result
+          
+        - name: Display IP configuration result
+          ansible.builtin.debug:
+            msg: "IP address {{ ip_address }} added to interface {{ interface_name }} successfully"
+          when: ip_config_result.changed
+          
+        - name: Verify IP address was configured
+          ansible.builtin.command:
+            cmd: ip addr show {{ interface_name }}
+          register: ip_verify
+          changed_when: false
+          
+        - name: Display configured IP addresses
+          ansible.builtin.debug:
+            msg: "{{ ip_verify.stdout_lines }}"
+          
+        - name: Restart NetworkManager if configuration changed
+          ansible.builtin.systemd:
+            name: NetworkManager
+            state: restarted
+          when: ip_config_result.changed
+          
+        - name: Close ServiceNow ticket
+          servicenow.itsm.incident:
+            instance: "{{ servicenow_instance }}"
+            username: "{{ servicenow_username }}"
+            password: "{{ servicenow_password }}"
+            number: "{{ servicenow_ticket_number }}"
+            state: "resolved"
+            close_code: "successful"
+            close_notes: "IP address {{ ip_address }} successfully configured on {{ inventory_hostname }} interface {{ interface_name }}. Gateway: {{ gateway }}"
+          delegate_to: localhost
+          register: ticket_close
+          
+        - name: Verify ticket was closed
+          ansible.builtin.debug:
+            msg: "Ticket {{ servicenow_ticket_number }} has been closed/resolved successfully"
+          when: ticket_close.record is defined
+      
+      rescue:
+        - name: Update ServiceNow ticket with error information on failure
+          servicenow.itsm.incident:
+            instance: "{{ servicenow_instance }}"
+            username: "{{ servicenow_username }}"
+            password: "{{ servicenow_password }}"
+            number: "{{ servicenow_ticket_number }}"
+            state: "in_progress"
+            work_notes: "Error occurred during IP configuration: {{ ansible_failed_result.msg | default('Unknown error') }}"
+          delegate_to: localhost
+          ignore_errors: yes
+          
+        - name: Fail with error message
+          ansible.builtin.fail:
+            msg: "Playbook execution failed. Please check the ServiceNow ticket for error details."
+
