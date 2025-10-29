@@ -17,12 +17,12 @@
           register: ticket_info
           delegate_to: localhost
           become: false
-          failed_when: ticket_info.record is not defined or ticket_info.record | length == 0
+          failed_when: ticket_info.records is not defined or ticket_info.records | length == 0
           
         - name: Display ticket information
           ansible.builtin.debug:
-            msg: "Found ticket {{ servicenow_ticket_number }} - Current state: {{ ticket_info.record[0].state | default('Unknown') }}"
-          when: ticket_info.record is defined and ticket_info.record | length > 0
+            msg: "Found ticket {{ servicenow_ticket_number }} - Current state: {{ ticket_info.records[0].state | default('Unknown') }}"
+          when: ticket_info.records is defined and ticket_info.records | length > 0
         
         - name: Set ServiceNow ticket to In Progress
           servicenow.itsm.incident:
