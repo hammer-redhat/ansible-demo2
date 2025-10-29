@@ -6,7 +6,7 @@
   tasks:
     - name: Ensure packages are installed
       ansible.builtin.dnf:
-        name: "{{ item.name }}"
+        name: "{{ item }}"
         state: present
       loop:
         - nginx
