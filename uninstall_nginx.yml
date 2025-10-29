@@ -1,0 +1,38 @@
+---
+- name: Remove NGINX and reset firewall on RHEL 9
+  hosts: all
+  become: yes  # Run tasks with root privileges
+
+  tasks:
+    - name: Ensure NGINX service is stopped and disabled
+      ansible.builtin.service:
+        name: nginx
+        state: stopped
+        enabled: no
+      ignore_errors: yes # Don't fail if the service isn't found (already removed)
+
+    - name: Close HTTP (port 80) in firewalld
+      ansible.posix.firewalld:
+        service: http
+        permanent: yes
+        state: disabled
+      notify: Reload firewalld
+
+    - name: Close HTTPS (port 443) in firewalld
+      ansible.posix.firewalld:
+        service: https
+        permanent: yes
+        state: disabled
+      notify: Reload firewalld
+
+    - name: Ensure NGINX package is removed
+      ansible.builtin.dnf:
+        name: nginx
+        state: absent
+        autoremove: yes # Also remove dependencies that are no longer needed
+
+  handlers:
+    - name: Reload firewalld
+      ansible.builtin.service:
+        name: firewalld
+        state: reloaded
