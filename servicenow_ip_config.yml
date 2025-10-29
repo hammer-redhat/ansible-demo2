@@ -1,6 +1,7 @@
 ---
 - name: ServiceNow Ticket Management and IP Configuration on RHEL 9
   hosts: all
+  become: true
   vars:
     # Network configuration variables
     interface_name: "{{ interface_name | default('eth0') }}"
@@ -15,6 +16,7 @@
             number: "{{ servicenow_ticket_number }}"
           register: ticket_info
           delegate_to: localhost
+          become: false
           failed_when: ticket_info.record is not defined or ticket_info.record | length == 0
           
         - name: Display ticket information
@@ -28,6 +30,7 @@
             state: "in_progress"
             work_notes: "Ticket set to in progress. Starting IP address configuration on {{ inventory_hostname }}"
           delegate_to: localhost
+          become: false
           register: ticket_update
           
         - name: Verify ticket was updated to In Progress
@@ -98,6 +101,7 @@
             close_code: "successful"
             close_notes: "IP address {{ ip_address }} successfully configured on {{ inventory_hostname }} interface {{ interface_name }}. Gateway: {{ gateway }}"
           delegate_to: localhost
+          become: false
           register: ticket_close
           
         - name: Verify ticket was closed
@@ -108,13 +112,11 @@
       rescue:
         - name: Update ServiceNow ticket with error information on failure
           servicenow.itsm.incident:
-            instance: "{{ servicenow_instance }}"
-            username: "{{ servicenow_username }}"
-            password: "{{ servicenow_password }}"
             number: "{{ servicenow_ticket_number }}"
             state: "in_progress"
             work_notes: "Error occurred during IP configuration: {{ ansible_failed_result.msg | default('Unknown error') }}"
           delegate_to: localhost
+          become: false
           ignore_errors: yes
           
         - name: Fail with error message
