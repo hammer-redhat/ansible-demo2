@@ -28,7 +28,8 @@
           servicenow.itsm.incident:
             number: "{{ servicenow_ticket_number }}"
             state: "in_progress"
-            work_notes: "Ticket set to in progress. Starting IP address configuration on {{ inventory_hostname }}"
+            other:
+              work_notes: "Ticket set to in progress. Starting IP address configuration on {{ inventory_hostname }}"
           delegate_to: localhost
           become: false
           register: ticket_update
@@ -114,7 +115,8 @@
           servicenow.itsm.incident:
             number: "{{ servicenow_ticket_number }}"
             state: "in_progress"
-            work_notes: "Error occurred during IP configuration: {{ ansible_failed_result.msg | default('Unknown error') }}"
+            other:
+              work_notes: "Error occurred during IP configuration: {{ ansible_failed_result.msg | default('Unknown error') }}"
           delegate_to: localhost
           become: false
           ignore_errors: yes
