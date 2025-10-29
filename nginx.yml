@@ -10,7 +10,7 @@
         state: present
 
     - name: Ensure NGINX service is running and enabled
-      ansible.builtin.service:
+      ansible.builtin.systemd:
         name: nginx
         state: started
         enabled: yes
