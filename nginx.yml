@@ -4,10 +4,13 @@
   become: yes  # Run tasks with root privileges
 
   tasks:
-    - name: Ensure NGINX package is installed
+    - name: Ensure packages are installed
       ansible.builtin.dnf:
-        name: nginx
+        name: "{{ item.name }}"
         state: present
+      loop:
+        - nginx
+        - firewalld
 
     - name: Ensure NGINX service is running and enabled
       ansible.builtin.systemd:
