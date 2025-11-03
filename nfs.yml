@@ -8,6 +8,11 @@
       ansible.builtin.dnf:
         name: nfs-utils
         state: present
+
+    - name: Ensure the NFS mount_path exists
+      ansible.builtin.file:
+        path: "{{ mount_path }}"
+        state: directory
         
     - name: Mount an NFS volume
       redhat.rhel_system_roles.mount:
