@@ -1,0 +1,18 @@
+---
+- name: Configure NFS Mount on RHEL 9
+  hosts: all
+  become: yes
+
+  tasks:
+    - name: Ensure NFS client is installed
+      ansible.builtin.dnf:
+        name: nfs-utils
+        state: present
+        
+    - name: Mount an NFS volume
+      redhat.rhel_system_roles.mount:
+        src: "{{ nfs_src }}"
+        path: "{{ mount_path}}"
+        opts: "{{ nfs_opts }}"
+        state: mounted
+        fstype: nfs
